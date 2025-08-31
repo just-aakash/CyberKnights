@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Today's Lectures</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- ✅ Face API library -->
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen p-8">
+
+  <!-- ✅ Header -->
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-700">Today's Lectures</h1>
+    <div class="flex gap-3">
+      <button id="previewBtn" 
+              class="px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700">
+        Preview Attendance
+      </button>
+      <a href="home.html" class="px-4 py-2 bg-orange-600 text-white rounded-lg shadow hover:bg-orange-700">
+        Back to Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- ✅ 5 Class Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <a href="#" data-lecture="Discrete Mathematics"
+       class="lecture-card p-6 bg-white rounded-xl shadow-lg hover:shadow-2xl transition">
+      <h2 class="text-lg font-semibold text-gray-800">Lecture-1</h2>
+      <p class="text-sm text-gray-600">Room No: CS2005</p>
+      <p class="text-sm text-gray-600">Section: 2FA</p>
+    </a>
+
+    <a href="#" data-lecture="Computer Organisation"
+       class="lecture-card p-6 bg-white rounded-xl shadow-lg hover:shadow-2xl transition">
+      <h2 class="text-lg font-semibold text-gray-800">Lecture-2</h2>
+      <p class="text-sm text-gray-600">Room No: BSCS100</p>
+      <p class="text-sm text-gray-600">Section: 2AA</p>
+    </a>
+
+    <a href="#" data-lecture="DBMS"
+       class="lecture-card p-6 bg-white rounded-xl shadow-lg hover:shadow-2xl transition">
+      <h2 class="text-lg font-semibold text-gray-800">Lecture-3</h2>
+      <p class="text-sm text-gray-600">Room No: BCO1005</p>
+      <p class="text-sm text-gray-600">Section: 2CA</p>
+    </a>
+
+    <a href="#" data-lecture="English"
+       class="lecture-card p-6 bg-white rounded-xl shadow-lg hover:shadow-2xl transition">
+      <h2 class="text-lg font-semibold text-gray-800">Lecture-4</h2>
+      <p class="text-sm text-gray-600">Room No: BELH 0081</p>
+      <p class="text-sm text-gray-600">Section: 2XX</p>
+    </a>
+
+    <a href="#" data-lecture="HTML"
+       class="lecture-card p-6 bg-white rounded-xl shadow-lg hover:shadow-2xl transition">
+      <h2 class="text-lg font-semibold text-gray-800">Lecture-5</h2>
+      <p class="text-sm text-gray-600">Room No: PCPH0001</p>
+      <p class="text-sm text-gray-600">Section: 2XN</p>
+    </a>
+  </div>
+
+  <!-- ✅ Camera Modal -->
+  <div id="cameraModal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center">
+    <div class="bg-white p-4 rounded-xl shadow-xl w-3/4 md:w-1/2 relative">
+      <h2 id="lectureTitle" class="text-xl font-bold mb-3 text-gray-700"></h2>
+      <video id="camera" autoplay muted class="w-full rounded-lg"></video>
+      <canvas id="overlay" class="absolute top-0 left-0"></canvas>
+      <div id="message" class="mt-2 text-sm text-blue-600"></div>
+
+      <!-- ✅ Manual Attendance Button -->
+      <button id="manualBtn" 
+              class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700">
+        Mark Manually (or press SPACEBAR)
+      </button>
+
+      <button id="closeCamera" 
+              class="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg shadow hover:bg-red-700">
+        Close
+      </button>
+    </div>
+  </div>
+
+  <!-- ✅ Preview Modal -->
+  <div id="previewModal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center">
+    <div class="bg-white p-4 rounded-xl shadow-xl w-3/4 md:w-1/2">
+      <a href="preview.html">
+        <h2 class="text-xl font-bold mb-3 text-gray-700">Attendance Preview</h2>
+      </a>
+      
+      <ul id="attendanceList" class="list-disc pl-6 text-gray-700"></ul>
+      <button id="closePreview" 
+              class="mt-4 px-4 py-2 bg-gray-600 text-white rounded-lg shadow hover:bg-gray-700">
+        Close
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const lectureCards = document.querySelectorAll('.lecture-card');
+    const modal = document.getElementById('cameraModal');
+    const lectureTitle = document.getElementById('lectureTitle');
+    const camera = document.getElementById('camera');
+    const closeBtn = document.getElementById('closeCamera');
+    const msg = document.getElementById('message');
+
+    const previewBtn = document.getElementById('previewBtn');
+    const previewModal = document.getElementById('previewModal');
+    const closePreview = document.getElementById('closePreview');
+    const attendanceList = document.getElementById('attendanceList');
+
+    const manualBtn = document.getElementById('manualBtn');
+
+    let stream;
+    let currentLecture = "";
+    let attendance = {}; // { lectureName: Set([...studentIDs]) }
+
+    // ✅ Open Camera on lecture click
+    lectureCards.forEach(card => {
+      card.addEventListener('click', async (e) => {
+        e.preventDefault();
+        currentLecture = card.dataset.lecture;
+        lectureTitle.textContent = "Attendance - " + currentLecture;
+        modal.classList.remove('hidden');
+
+        // start camera
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        camera.srcObject = stream;
+
+        // Load Face API models
+        await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+        detectFaces(currentLecture);
+      });
+    });
+
+    // ✅ Close Camera
+    closeBtn.addEventListener('click', () => {
+      modal.classList.add('hidden');
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    });
+
+    // ✅ Preview Attendance
+    previewBtn.addEventListener('click', () => {
+      attendanceList.innerHTML = '';
+      for (let lec in attendance) {
+        let li = document.createElement('li');
+        li.innerHTML = `<b>${lec}</b>: ${Array.from(attendance[lec]).join(', ') || "No students yet"}`;
+        attendanceList.appendChild(li);
+      }
+      previewModal.classList.remove('hidden');
+    });
+
+    closePreview.addEventListener('click', () => {
+      previewModal.classList.add('hidden');
+    });
+
+    // ✅ Manual Attendance Function
+    function markManual() {
+      if (!attendance[currentLecture]) {
+        attendance[currentLecture] = new Set();
+      }
+      const studentName = prompt("Enter Student Name/ID:");
+      if (studentName) {
+        if (attendance[currentLecture].has(studentName)) {
+          msg.textContent = `⚠️ ${studentName} already marked present.`;
+        } else {
+          attendance[currentLecture].add(studentName);
+          msg.textContent = `✅ ${studentName} marked present (manual).`;
+        }
+      }
+    }
+
+    // ✅ Manual Button Click
+    manualBtn.addEventListener('click', markManual);
+
+    // ✅ Spacebar Shortcut
+    document.addEventListener('keydown', (e) => {
+      if (!modal.classList.contains('hidden') && e.code === "Space") {
+        e.preventDefault(); // stop page scrolling
+        markManual();
+      }
+    });
+
+    // ✅ Fake Face Recognition with IDs
+    function generateFakeID(detections) {
+      return "Person_" + detections.length + "_" + Math.floor(Math.random() * 1000);
+    }
+
+    // ✅ Face Detection function
+    async function detectFaces(lectureName) {
+      const canvas = document.getElementById('overlay');
+      const displaySize = { width: camera.width, height: camera.height };
+      faceapi.matchDimensions(canvas, displaySize);
+
+      if (!attendance[lectureName]) {
+        attendance[lectureName] = new Set();
+      }
+
+      setInterval(async () => {
+        const detections = await faceapi.detectAllFaces(camera, new faceapi.TinyFaceDetectorOptions());
+        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+        faceapi.draw.drawDetections(canvas, resizedDetections);
+
+        if (detections.length > 0) {
+          let fakeID = generateFakeID(detections);
+          if (attendance[lectureName].has(fakeID)) {
+            msg.textContent = `⚠️ ${fakeID} already marked present.`;
+          } else {
+            attendance[lectureName].add(fakeID);
+            msg.textContent = `✅ ${fakeID} marked present.`;
+          }
+        }
+      }, 2000);
+    }
+  </script>
+</body>
+</html>
